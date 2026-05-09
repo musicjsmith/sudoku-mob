@@ -33,7 +33,7 @@
     padding: 12px 18px 6px;
   }
   #top h1 { font-size: 22px; font-weight: 800; letter-spacing: 3px; color: #89b4fa; }
-  #timer   { font-size: 20px; font-weight: 700; color: #fab387; }
+  #timer   { display: none; }
 
   /* difficulty row */
   #diff-row {
@@ -403,6 +403,16 @@ function draw(errorSet) {
   }
 }
 
+function updateNumpad() {
+  // count how many times each digit appears on the board
+  const counts = Array(10).fill(0);
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++) if (board[r][c]) counts[board[r][c]]++;
+  for (let n=1; n<=9; n++) {
+    const btn = document.getElementById('nbtn-'+n);
+    if (btn) btn.style.visibility = counts[n] >= 9 ? 'hidden' : 'visible';
+  }
+}
+
 function liveErrors() {
   const s = new Set();
   for (let r=0;r<9;r++) for(let c=0;c<9;c++)
@@ -440,6 +450,7 @@ function newGame() {
     document.getElementById('mc').textContent='0';
     initCanvas();
     draw();
+    updateNumpad();
     setStatus(difficulty+' — Good luck!', false);
     startTimer();
   }, 10);
@@ -455,13 +466,14 @@ function enterNumber(n) {
     if (!wasWrong) { mistakes++; document.getElementById('mc').textContent=mistakes; }
     draw(liveErrors());
   } else { draw(); }
+  updateNumpad();
   checkWin();
 }
 
 function eraseCell() {
   if (!sel) return;
   const [r,c]=sel;
-  if (!fixed[r][c]) { board[r][c]=0; draw(); }
+  if (!fixed[r][c]) { board[r][c]=0; draw(); updateNumpad(); }
 }
 
 function giveHint() {
@@ -476,6 +488,7 @@ function giveHint() {
   flashCell={r,c,bg:'#a6e3a130',fg:'#a6e3a1'};
   draw();
   setTimeout(()=>{ flashCell=null; draw(); }, 700);
+  updateNumpad();
   setStatus(`Hint #${hintsUsed} used.`, false);
   checkWin();
 }
@@ -496,7 +509,7 @@ function revealSolution() {
   if (!confirm('Give up and show the solution?')) return;
   stopTimer();
   for(let r=0;r<9;r++) for(let c=0;c<9;c++) board[r][c]=sol[r][c];
-  draw(); setStatus('Solution revealed.',true);
+  draw(); updateNumpad(); setStatus('Solution revealed.',true);
 }
 
 function checkWin() {
@@ -550,7 +563,7 @@ const diffRow = document.getElementById('diff-row');
 const numpad = document.getElementById('numpad');
 for (let n=1; n<=9; n++) {
   const btn = document.createElement('button');
-  btn.className='nbtn'; btn.textContent=n;
+  btn.className='nbtn'; btn.textContent=n; btn.id='nbtn-'+n;
   btn.addEventListener('touchstart',e=>{e.preventDefault();enterNumber(n);},{passive:false});
   btn.onclick=()=>enterNumber(n);
   numpad.appendChild(btn);
