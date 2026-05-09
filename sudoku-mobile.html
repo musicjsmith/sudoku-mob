@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sudoku">
+<meta name="theme-color" content="#1e1e2e">
+<title>Sudoku</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, "Helvetica Neue", sans-serif;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100dvh;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    overflow-x: hidden;
+  }
+
+  /* header */
+  #top {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px 6px;
+  }
+  #top h1 { font-size: 22px; font-weight: 800; letter-spacing: 3px; color: #89b4fa; }
+  #timer   { font-size: 20px; font-weight: 700; color: #fab387; }
+
+  /* difficulty row */
+  #diff-row {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+    padding: 4px 12px 6px;
+  }
+  .dbtn {
+    flex: 1;
+    padding: 7px 2px;
+    border-radius: 20px;
+    border: 2px solid #45475a;
+    background: #313244;
+    color: #cdd6f4;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .dbtn.on { background: #89b4fa; border-color: #89b4fa; color: #1e1e2e; }
+
+  /* stats */
+  #stats {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 2px 14px 6px;
+    font-size: 13px;
+    color: #6c7086;
+    gap: 10px;
+  }
+  #stats b { color: #cdd6f4; }
+
+  /* assist toggle */
+  #assist-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    cursor: pointer;
+  }
+  #assist-chk { display: none; }
+  #track {
+    width: 36px; height: 20px;
+    background: #45475a;
+    border-radius: 10px;
+    position: relative;
+    transition: background .2s;
+    flex-shrink: 0;
+  }
+  #track::after {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    background: #cdd6f4;
+    border-radius: 50%;
+    top: 3px; left: 3px;
+    transition: transform .2s;
+  }
+  #assist-chk:checked ~ #track { background: #f38ba8; }
+  #assist-chk:checked ~ #track::after { transform: translateX(16px); }
+  #assist-label { font-size: 12px; font-weight: 600; color: #6c7086; }
+  #assist-chk:checked ~ #assist-label { color: #f38ba8; }
+
+  /* canvas wrapper — centered */
+  #canvas-wrap { margin: 4px auto; touch-action: none; }
+
+  /* number pad */
+  #numpad {
+    display: flex;
+    gap: 5px;
+    padding: 8px 10px 4px;
+    width: 100%;
+    justify-content: center;
+  }
+  .nbtn {
+    width: 10%;
+    max-width: 50px;
+    aspect-ratio: 1;
+    border-radius: 10px;
+    border: none;
+    background: #313244;
+    color: #89b4fa;
+    font-size: 22px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .1s;
+  }
+  .nbtn:active { background: #45475a; }
+  .nbtn.er { color: #f38ba8; font-size: 18px; }
+
+  /* action buttons */
+  #actions {
+    display: flex;
+    gap: 8px;
+    padding: 4px 10px 6px;
+    width: 100%;
+    justify-content: center;
+  }
+  .abtn {
+    flex: 1;
+    max-width: 90px;
+    padding: 10px 4px;
+    border-radius: 12px;
+    border: none;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .abtn:active { opacity: .8; }
+  .a-new   { background: #89b4fa; color: #1e1e2e; }
+  .a-hint  { background: #a6e3a1; color: #1e1e2e; }
+  .a-check { background: #fab387; color: #1e1e2e; }
+  .a-solve { background: #cba6f7; color: #1e1e2e; }
+
+  #status {
+    font-size: 13px;
+    font-weight: 600;
+    color: #a6e3a1;
+    min-height: 18px;
+    text-align: center;
+    padding: 2px 12px 4px;
+  }
+  #status.err { color: #f38ba8; }
+
+  /* install hint */
+  #install-tip {
+    font-size: 11px;
+    color: #45475a;
+    text-align: center;
+    padding: 4px 12px 8px;
+  }
+
+  /* win overlay */
+  #win {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(30,30,46,.85);
+    align-items: center;
+    justify-content: center;
+    z-index: 99;
+  }
+  #win.show { display: flex; }
+  #win-box {
+    background: #313244;
+    border: 2px solid #89b4fa;
+    border-radius: 20px;
+    padding: 36px 44px;
+    text-align: center;
+    animation: pop .3s ease;
+  }
+  @keyframes pop { from{transform:scale(.8);opacity:0} to{transform:scale(1);opacity:1} }
+  #win-box h2 { font-size: 28px; color: #a6e3a1; margin-bottom: 10px; }
+  #win-box p  { color: #cdd6f4; margin: 4px 0; font-size: 15px; }
+  #win-box button {
+    margin-top: 20px;
+    padding: 12px 36px;
+    border-radius: 12px;
+    border: none;
+    background: #89b4fa;
+    color: #1e1e2e;
+    font-size: 15px;
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+
+<div id="top">
+  <h1>SUDOKU</h1>
+  <div id="timer">00:00</div>
+</div>
+
+<div id="diff-row"></div>
+
+<div id="stats">
+  Hints: <b id="hc">0</b> &nbsp;·&nbsp; Mistakes: <b id="mc">0</b>
+  <label id="assist-wrap">
+    <input type="checkbox" id="assist-chk">
+    <span id="track"></span>
+    <span id="assist-label">Instant errors</span>
+  </label>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="board"></canvas>
+</div>
+
+<div id="numpad"></div>
+
+<div id="actions">
+  <button class="abtn a-new"   onclick="newGame()">New</button>
+  <button class="abtn a-hint"  onclick="giveHint()">Hint</button>
+  <button class="abtn a-check" onclick="checkBoard()">Check</button>
+  <button class="abtn a-solve" onclick="revealSolution()">Solve</button>
+</div>
+
+<div id="status"></div>
+<div id="install-tip">Tip: Share → Add to Home Screen to install as an app</div>
+
+<div id="win">
+  <div id="win-box">
+    <h2>🎉 Solved!</h2>
+    <p id="wt"></p>
+    <p id="wh"></p>
+    <button onclick="closeWin()">Play Again</button>
+  </div>
+</div>
+
+<script>
+// ── Puzzle generation ──────────────────────────────────────────────────────
+
+function isValid(b, row, col, n) {
+  for (let i = 0; i < 9; i++) if (b[row][i] === n || b[i][col] === n) return false;
+  const br = Math.floor(row/3)*3, bc = Math.floor(col/3)*3;
+  for (let r = br; r < br+3; r++) for (let c = bc; c < bc+3; c++) if (b[r][c] === n) return false;
+  return true;
+}
+function fillBoard(b) {
+  for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) if (b[r][c] === 0) {
+    for (const n of shuffle([1,2,3,4,5,6,7,8,9])) {
+      if (isValid(b,r,c,n)) { b[r][c]=n; if (fillBoard(b)) return true; b[r][c]=0; }
+    }
+    return false;
+  }
+  return true;
+}
+function countSol(b, cap=2) {
+  let n=0;
+  function go(b) { if(n>=cap) return;
+    for(let r=0;r<9;r++) for(let c=0;c<9;c++) if(b[r][c]===0) {
+      for(let v=1;v<=9;v++) if(isValid(b,r,c,v)){b[r][c]=v;go(b);b[r][c]=0;}
+      return;
+    } n++;
+  }
+  go(b.map(r=>[...r])); return n;
+}
+const CLUES={Easy:38,Medium:30,Hard:25,Expert:22};
+function makePuzzle(diff) {
+  const b=Array.from({length:9},()=>Array(9).fill(0));
+  fillBoard(b);
+  const sol=b.map(r=>[...r]), puz=b.map(r=>[...r]);
+  let removed=0, target=81-CLUES[diff];
+  for (const idx of shuffle([...Array(81).keys()])) {
+    if (removed>=target) break;
+    const r=Math.floor(idx/9),c=idx%9, bk=puz[r][c];
+    puz[r][c]=0;
+    if(countSol(puz)===1) removed++; else puz[r][c]=bk;
+  }
+  return {sol, puz};
+}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+// ── State ──────────────────────────────────────────────────────────────────
+
+let sol, board, fixed, sel=null, hintsUsed=0, mistakes=0;
+let startTime, timerInterval, difficulty='Medium';
+const assistOn = ()=>document.getElementById('assist-chk').checked;
+
+// ── Canvas setup ───────────────────────────────────────────────────────────
+
+const canvas = document.getElementById('board');
+const ctx    = canvas.getContext('2d');
+const DPR    = window.devicePixelRatio || 1;
+
+// compute cell size to fit screen width with margins
+function cellSize() {
+  const maxW = Math.min(window.innerWidth - 24, 420);
+  return Math.floor(maxW / 9);
+}
+
+function initCanvas() {
+  const cell = cellSize();
+  const size = cell * 9;
+  canvas.style.width  = size + 'px';
+  canvas.style.height = size + 'px';
+  canvas.width  = size * DPR;
+  canvas.height = size * DPR;
+  ctx.scale(DPR, DPR);
+}
+
+// ── Drawing ────────────────────────────────────────────────────────────────
+
+const C = {
+  bg:      '#1e1e2e',
+  cell:    '#313244',
+  given:   '#45475a',
+  sel:     '#89b4fa',
+  related: '#2a2a3e',
+  samenum: '#383850',
+  err:     '#f38ba840',
+  hint:    '#a6e3a140',
+  lineBox: '#89b4fa',
+  lineThin:'#6c7086',
+  textGiven:'#cdd6f4',
+  textUser: '#89dceb',
+  textErr:  '#f38ba8',
+  textHint: '#a6e3a1',
+};
+
+let flashCell = null; // {r,c,color,textColor} for hint flash
+
+function draw(errorSet) {
+  if (!board) return;
+  if (!errorSet && assistOn()) errorSet = liveErrors();
+  const cell = cellSize();
+  const size = cell * 9;
+  const selVal = sel ? board[sel[0]][sel[1]] : 0;
+
+  ctx.clearRect(0, 0, size, size);
+
+  // cell backgrounds
+  for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+    const isSel  = sel && sel[0]===r && sel[1]===c;
+    const isErr  = errorSet && errorSet.has(`${r},${c}`);
+    const isRel  = sel && !isSel && (sel[0]===r || sel[1]===c ||
+                   (Math.floor(sel[0]/3)===Math.floor(r/3) && Math.floor(sel[1]/3)===Math.floor(c/3)));
+    const isSame = selVal && board[r][c]===selVal && !isSel;
+    const isFlash = flashCell && flashCell.r===r && flashCell.c===c;
+
+    ctx.fillStyle = isFlash ? flashCell.bg
+                  : isSel   ? C.sel
+                  : isErr   ? C.err
+                  : isSame  ? C.samenum
+                  : isRel   ? C.related
+                  : fixed[r][c] ? C.given : C.cell;
+    ctx.fillRect(c*cell, r*cell, cell, cell);
+  }
+
+  // grid lines
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = C.lineThin;
+  for (let i = 1; i < 9; i++) {
+    if (i%3 === 0) continue;
+    ctx.beginPath(); ctx.moveTo(i*cell, 0); ctx.lineTo(i*cell, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i*cell); ctx.lineTo(size, i*cell); ctx.stroke();
+  }
+  // thick box lines
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = C.lineBox;
+  for (let i = 0; i <= 9; i += 3) {
+    ctx.beginPath(); ctx.moveTo(i*cell, 0); ctx.lineTo(i*cell, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i*cell); ctx.lineTo(size, i*cell); ctx.stroke();
+  }
+
+  // digits
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const fontSize = Math.round(cell * 0.52);
+  ctx.font = `700 ${fontSize}px -apple-system, Helvetica Neue, sans-serif`;
+
+  for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+    const v = board[r][c];
+    if (!v) continue;
+    const isErr   = errorSet && errorSet.has(`${r},${c}`);
+    const isFlash = flashCell && flashCell.r===r && flashCell.c===c;
+    const isSel   = sel && sel[0]===r && sel[1]===c;
+    ctx.fillStyle = isFlash  ? flashCell.fg
+                  : isErr    ? C.textErr
+                  : isSel    ? '#1e1e2e'
+                  : fixed[r][c] ? C.textGiven : C.textUser;
+    ctx.fillText(v, c*cell + cell/2, r*cell + cell/2);
+  }
+}
+
+function liveErrors() {
+  const s = new Set();
+  for (let r=0;r<9;r++) for(let c=0;c<9;c++)
+    if (!fixed[r][c] && board[r][c] && board[r][c]!==sol[r][c]) s.add(`${r},${c}`);
+  return s;
+}
+
+// ── Touch/click on canvas ──────────────────────────────────────────────────
+
+function canvasTap(e) {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches ? e.touches[0] : e;
+  const x = touch.clientX - rect.left;
+  const y = touch.clientY - rect.top;
+  const cell = cellSize();
+  const c = Math.floor(x / cell);
+  const r = Math.floor(y / cell);
+  if (r>=0 && r<9 && c>=0 && c<9) { sel=[r,c]; draw(); }
+}
+canvas.addEventListener('touchstart', canvasTap, {passive:false});
+canvas.addEventListener('click', canvasTap);
+
+// ── Game logic ─────────────────────────────────────────────────────────────
+
+function newGame() {
+  setStatus('Generating…', false);
+  setTimeout(() => {
+    const res = makePuzzle(difficulty);
+    sol   = res.sol;
+    board = res.puz.map(r=>[...r]);
+    fixed = res.puz.map(r=>r.map(v=>v!==0));
+    sel   = null; hintsUsed=0; mistakes=0; flashCell=null;
+    document.getElementById('hc').textContent='0';
+    document.getElementById('mc').textContent='0';
+    initCanvas();
+    draw();
+    setStatus(difficulty+' — Good luck!', false);
+    startTimer();
+  }, 10);
+}
+
+function enterNumber(n) {
+  if (!sel) return;
+  const [r,c] = sel;
+  if (fixed[r][c]) return;
+  const wasWrong = board[r][c] && board[r][c]!==sol[r][c];
+  board[r][c] = n;
+  if (assistOn() && n!==sol[r][c]) {
+    if (!wasWrong) { mistakes++; document.getElementById('mc').textContent=mistakes; }
+    draw(liveErrors());
+  } else { draw(); }
+  checkWin();
+}
+
+function eraseCell() {
+  if (!sel) return;
+  const [r,c]=sel;
+  if (!fixed[r][c]) { board[r][c]=0; draw(); }
+}
+
+function giveHint() {
+  const empty=[];
+  for(let r=0;r<9;r++) for(let c=0;c<9;c++) if(board[r][c]!==sol[r][c]) empty.push([r,c]);
+  if (!empty.length) { setStatus('Board is complete!',false); return; }
+  const [r,c]=empty[Math.floor(Math.random()*empty.length)];
+  board[r][c]=sol[r][c];
+  sel=[r,c]; hintsUsed++;
+  document.getElementById('hc').textContent=hintsUsed;
+  // flash
+  flashCell={r,c,bg:'#a6e3a130',fg:'#a6e3a1'};
+  draw();
+  setTimeout(()=>{ flashCell=null; draw(); }, 700);
+  setStatus(`Hint #${hintsUsed} used.`, false);
+  checkWin();
+}
+
+function checkBoard() {
+  const errs=liveErrors();
+  const filled=board.flat().filter(v=>v).length;
+  if (!errs.size && filled===81) { checkWin(); return; }
+  if (errs.size) {
+    mistakes+=errs.size; document.getElementById('mc').textContent=mistakes;
+    setStatus(`${errs.size} mistake(s) highlighted.`,true);
+    draw(errs);
+    setTimeout(()=>draw(), 2000);
+  } else { setStatus('No mistakes — keep going!',false); }
+}
+
+function revealSolution() {
+  if (!confirm('Give up and show the solution?')) return;
+  stopTimer();
+  for(let r=0;r<9;r++) for(let c=0;c<9;c++) board[r][c]=sol[r][c];
+  draw(); setStatus('Solution revealed.',true);
+}
+
+function checkWin() {
+  for(let r=0;r<9;r++) for(let c=0;c<9;c++) if(board[r][c]!==sol[r][c]) return;
+  stopTimer();
+  const s=Math.floor((Date.now()-startTime)/1000);
+  const m=Math.floor(s/60), sec=s%60;
+  const t=`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  document.getElementById('wt').textContent=`Time: ${t}`;
+  document.getElementById('wh').textContent=hintsUsed?`Hints: ${hintsUsed}`:'No hints — impressive!';
+  document.getElementById('win').classList.add('show');
+  setStatus(`Solved in ${t}!`,false);
+}
+
+function closeWin() { document.getElementById('win').classList.remove('show'); newGame(); }
+
+// ── Timer ──────────────────────────────────────────────────────────────────
+
+function startTimer() {
+  stopTimer(); startTime=Date.now();
+  timerInterval=setInterval(()=>{
+    const s=Math.floor((Date.now()-startTime)/1000);
+    document.getElementById('timer').textContent=
+      `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  },1000);
+}
+function stopTimer(){clearInterval(timerInterval);}
+function setStatus(msg,err){
+  const el=document.getElementById('status');
+  el.textContent=msg; el.className=err?'err':'';
+}
+
+// ── Build difficulty buttons ───────────────────────────────────────────────
+
+const diffRow = document.getElementById('diff-row');
+['Easy','Medium','Hard','Expert'].forEach(d => {
+  const btn = document.createElement('button');
+  btn.className = 'dbtn' + (d===difficulty?' on':'');
+  btn.textContent = d;
+  btn.onclick = () => {
+    difficulty=d;
+    document.querySelectorAll('.dbtn').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    newGame();
+  };
+  diffRow.appendChild(btn);
+});
+
+// ── Build number pad ───────────────────────────────────────────────────────
+
+const numpad = document.getElementById('numpad');
+for (let n=1; n<=9; n++) {
+  const btn = document.createElement('button');
+  btn.className='nbtn'; btn.textContent=n;
+  btn.addEventListener('touchstart',e=>{e.preventDefault();enterNumber(n);},{passive:false});
+  btn.onclick=()=>enterNumber(n);
+  numpad.appendChild(btn);
+}
+const eb=document.createElement('button');
+eb.className='nbtn er'; eb.textContent='⌫';
+eb.addEventListener('touchstart',e=>{e.preventDefault();eraseCell();},{passive:false});
+eb.onclick=eraseCell;
+numpad.appendChild(eb);
+
+// ── Keyboard (desktop fallback) ────────────────────────────────────────────
+
+document.addEventListener('keydown', e=>{
+  if (!sel) return;
+  if (e.key>='1'&&e.key<='9'){enterNumber(+e.key);return;}
+  if (e.key==='Backspace'||e.key==='Delete'){eraseCell();return;}
+  const mv={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]};
+  if (mv[e.key]){e.preventDefault();
+    sel=[Math.max(0,Math.min(8,sel[0]+mv[e.key][0])),Math.max(0,Math.min(8,sel[1]+mv[e.key][1]))];
+    draw();}
+});
+
+document.getElementById('assist-chk').addEventListener('change',()=>draw());
+window.addEventListener('resize',()=>{ initCanvas(); draw(); });
+
+// hide install tip if already installed as PWA
+if (window.navigator.standalone) document.getElementById('install-tip').style.display='none';
+
+// ── Start ──────────────────────────────────────────────────────────────────
+newGame();
+</script>
+</body>
+</html>
